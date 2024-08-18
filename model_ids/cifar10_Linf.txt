@@ -58,10 +58,3 @@ Zhang2019Theoretically
 Cui2020Learnable_34_10
 Addepalli2022Efficient_RN18
 Chen2020Adversarial
-Chen2020Efficient
-Addepalli2021Towards_RN18
-Sitawarin2020Improving
-Engstrom2019Robustness
-Zhang2019You
-Andriushchenko2020Understanding
-Wong2020Fast

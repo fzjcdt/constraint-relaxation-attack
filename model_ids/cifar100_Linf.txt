@@ -1,3 +1,9 @@
+Cui2023Decoupled_WRN-28-10
+Bai2023Improving_edm
+Bai2023Improving_trades
+Cui2023Decoupled_WRN-34-10_autoaug
+Cui2023Decoupled_WRN-34-10
+Chen2024Data_WRN_34_10
 Wang2023Better_WRN-70-16
 Wang2023Better_WRN-28-10
 Gowal2020Uncovering_extra
@@ -22,9 +28,3 @@ Rade2021Helper_R18_ddpm
 Wu2020Adversarial
 Rebuffi2021Fixing_R18_ddpm
 Hendrycks2019Using
-Addepalli2022Efficient_RN18
-Cui2020Learnable_34_10_LBGAT0
-Addepalli2021Towards_PARN18
-Chen2020Efficient
-Sitawarin2020Improving
-Rice2020Overfitting
