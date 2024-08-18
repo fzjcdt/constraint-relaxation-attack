@@ -3,7 +3,7 @@ Code for the paper: Efficient Robustness Evaluation via Constraint Relaxation
 
 ## Environment settings
 - OS: Ubuntu 20.04.3
-- GPU: NVIDIA V100
+- GPU: ‌NVIDIA Tesla V100
 - Cuda: 11.4
 - Python: 3.8.10
 - PyTorch: 1.10.1
@@ -15,8 +15,8 @@ The default setting will initiate an attack on all models contained within the .
 
 ```.bash
 python main.py --dataset 'cifar10'
-python main.py --dataset 'cifar100' --target-numbers 5
-python main.py --dataset 'imagenet' --eps '4/255' --target-numbers 5
+python main.py --dataset 'cifar100'
+python main.py --dataset 'imagenet' --eps '4/255'
 ```
 
 ## Full results
