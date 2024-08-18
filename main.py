@@ -2,6 +2,7 @@ import argparse
 import gc
 import time
 
+import numpy as np
 import torch
 import torchvision.transforms as transforms
 from robustbench import load_model
@@ -19,12 +20,19 @@ parser.add_argument('--batch-size', type=int, default=50, help='batch size')
 parser.add_argument('--eps', type=str, default='8./255', help='epsilon')
 parser.add_argument('--max-iter', type=int, default=150, help='max iteration')
 parser.add_argument('--decay-steps', type=int, default=30, help='decay steps')
-parser.add_argument('--target-numbers', type=int, default=3, help='target numbers')
 parser.add_argument('--restart', type=int, default=5, help='restart numbers')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 
+dataset2class_num = {
+    'cifar10': 10,
+    'cifar100': 100,
+    'imagenet': 1000
+}
+
+
 argparse = parser.parse_args()
 argparse.eps = eval(argparse.eps)
+target_numbers = int(np.ceil(np.log(dataset2class_num[argparse.dataset])))
 
 # logger
 log_file = './log/' + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()) + '.log'
@@ -80,7 +88,7 @@ for model_id in model_ids:
     model = load_model(model_name=model_id, dataset=argparse.dataset, threat_model=argparse.l_norm).to(device)
     model = model.eval()
     attacker = CRAttack(model, eps=argparse.eps, max_iter=argparse.max_iter, decay_steps=argparse.decay_steps,
-                        target_numbers=argparse.target_numbers, restart=argparse.restart, seed=argparse.seed)
+                        target_numbers=target_numbers, restart=argparse.restart, seed=argparse.seed)
     success, total = 0, 0
     total_f, total_b = 0, 0
     if argparse.dataset in ['cifar10', 'cifar100']:
