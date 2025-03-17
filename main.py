@@ -22,6 +22,7 @@ parser.add_argument('--max-iter', type=int, default=150, help='max iteration')
 parser.add_argument('--decay-steps', type=int, default=30, help='decay steps')
 parser.add_argument('--restart', type=int, default=5, help='restart numbers')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
+parser.add_argument('--device', type=str, default='cuda:0', help='device')
 
 dataset2class_num = {
     'cifar10': 10,
@@ -81,7 +82,7 @@ def margin(x, y):
     return y_corr - y_others
 
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = argparse.device if torch.cuda.is_available() else 'cpu'
 
 for model_id in model_ids:
     logger.log('model: ' + model_id)
@@ -108,6 +109,7 @@ for model_id in model_ids:
                     'success: {}, total: {}, margin: {}, forward: {}, backward: {}, total_f: {}, total_b: {}, time: {}'
                     .format(success, total, m.item(), fn.item(), bn.item(), total_f, total_b, time.time() - start))
         logger.log('attack success rate: {}'.format(success / total))
+        logger.log('robust accuracy: {}'.format(1 - success / total))
         logger.new_line()
     else:
         prepr = get_preprocessing(BenchmarkDataset.imagenet, ThreatModel.Linf, model_id, None)
@@ -131,6 +133,7 @@ for model_id in model_ids:
                     'success: {}, total: {}, margin: {}, forward: {}, backward: {}, total_f: {}, total_b: {}, time: {}'
                     .format(success, total, m.item(), fn.item(), bn.item(), total_f, total_b, time.time() - start))
         logger.log('attack success rate: {}'.format(success / total))
+        logger.log('robust accuracy: {}'.format(1 - success / total))
 
         del clean_x_test, clean_y_test
         gc.collect()

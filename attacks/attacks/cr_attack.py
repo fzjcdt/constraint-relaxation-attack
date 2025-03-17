@@ -1,7 +1,10 @@
+import time
 import torch
 import torch.nn as nn
 
 from ..attack import Attack
+
+from utils import Logger
 
 
 class CRAttack(Attack):
@@ -10,7 +13,7 @@ class CRAttack(Attack):
     """
 
     def __init__(self, model, eps=8 / 255,
-                 max_iter=150, decay_steps=30, target_numbers=3, restart=5, random_start=True, seed=0):
+                 max_iter=150, decay_steps=30, target_numbers=3, restart=5, random_start=True, seed=0, log_path=None):
         """
         :
         :param model: the model to attack
@@ -32,6 +35,10 @@ class CRAttack(Attack):
         self.target_num = target_numbers
         self.restart = restart
         self.random_start = random_start
+        if log_path is not None:
+            self.logger = Logger(log_path)
+        else:
+            self.logger = None
         self._supported_mode = ['Linf']
 
     def margin(self, x, y):
@@ -57,7 +64,7 @@ class CRAttack(Attack):
         adv_images = images.clone().detach()
 
         if self.random_start:
-            adv_images = adv_images + torch.empty_like(adv_images).uniform_(-self.eps, self.eps)
+            adv_images += torch.empty_like(adv_images).uniform_(-self.eps, self.eps)
             adv_images = torch.clamp(adv_images, min=0, max=1).detach()
 
         margin_min = self.margin(adv_images, labels)
@@ -77,7 +84,7 @@ class CRAttack(Attack):
             if step == self.decay_steps // 6:
                 scale *= 0.5
 
-            cur_adv_images.requires_grad = True
+            cur_adv_images.requires_grad_()
             outputs = self.model(cur_adv_images)
             cost = loss(outputs, cur_y)
 
@@ -88,7 +95,7 @@ class CRAttack(Attack):
             backward_num[idx_to_fool] += 1
 
             # early stop
-            u = torch.arange(cur_adv_images.shape[0])
+            u = torch.arange(cur_adv_images.shape[0], device=self.device)
             outputs_copy = outputs.clone().detach()
             y_corr = outputs[u, cur_y].clone().detach()
             outputs_copy[u, cur_y] = -float('inf')
@@ -97,7 +104,7 @@ class CRAttack(Attack):
 
             idx_success = (margin_min < 0.0).nonzero().flatten()
             if len(idx_success) != 0:
-                adv_images[idx_to_fool[idx_success]] = cur_adv_images[idx_success].clone().detach()
+                adv_images[idx_to_fool[idx_success]] = cur_adv_images[idx_success].detach()
 
             sub_idx_to_fool = (margin_min >= 0.0).nonzero().flatten()
             if len(sub_idx_to_fool) == 0:
@@ -109,8 +116,7 @@ class CRAttack(Attack):
                 cur_images = cur_images[sub_idx_to_fool]
                 cur_y = cur_y[sub_idx_to_fool].clone().detach()
 
-                cur_adv_images = cur_adv_images[sub_idx_to_fool].clone().detach() + \
-                                 self.alpha * scale * grad[sub_idx_to_fool].sign()
+                cur_adv_images = cur_adv_images[sub_idx_to_fool] + self.alpha * scale * grad[sub_idx_to_fool].sign()
                 delta = torch.clamp(cur_adv_images - cur_images, min=-self.eps, max=self.eps)
                 cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1).detach()
             else:
@@ -131,6 +137,7 @@ class CRAttack(Attack):
         forward_num += 1
 
         potential_idx = torch.zeros((self.target_num, images.shape[0])).type(torch.bool).to(self.device)
+
         # constraint relaxation attack
         for target_index in range(self.target_num):
             scale = 1.0
@@ -142,17 +149,16 @@ class CRAttack(Attack):
             else:
                 idx_to_fool = (margin_min >= 0.0).nonzero().flatten()
 
-            # constraint relaxation attack
             if len(idx_to_fool) == 0:
                 return adv_images, forward_num, backward_num, potential_idx
 
             cur_images = images[idx_to_fool]
 
-            cur_adv_images = images[idx_to_fool].clone().detach()
-            cur_adv_images = cur_adv_images + torch.empty_like(cur_adv_images).uniform_(-self.eps, self.eps)
-            cur_adv_images = torch.clamp(cur_adv_images, min=0, max=1).detach()
-            cur_y = labels[idx_to_fool].clone().detach()
-            target_y = max_pred[idx_to_fool].clone().detach()
+            cur_adv_images = cur_images + torch.empty_like(cur_images).uniform_(-self.eps, self.eps)
+            cur_adv_images = torch.clamp(cur_adv_images, min=0, max=1)
+
+            cur_y = labels[idx_to_fool]
+            target_y = max_pred[idx_to_fool]
 
             for i in range(self.max_iter):
                 if i % self.decay_steps == 0:
@@ -168,23 +174,21 @@ class CRAttack(Attack):
                     delta = torch.clamp(cur_adv_images - cur_images, min=-cur_eps, max=cur_eps)
                     cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1)
 
-                    cur_adv_images = cur_adv_images + torch.empty_like(cur_adv_images) \
-                        .uniform_(-self.alpha * scale, self.alpha * scale)
-                    cur_adv_images = torch.clamp(cur_adv_images, min=0, max=1).clone().detach()
+                    cur_adv_images += torch.empty_like(cur_adv_images).uniform_(-self.alpha * scale, self.alpha * scale)
+                    cur_adv_images = torch.clamp(cur_adv_images, min=0, max=1)
                     cur_eps = self.eps
                 else:
                     cur_eps = self.eps
 
-                cur_adv_images.requires_grad = True
+                # Avoid modifying `requires_grad` directly on non-leaf tensors
+                cur_adv_images.requires_grad_()
                 outputs = self.model(cur_adv_images)
                 u = torch.arange(cur_adv_images.shape[0])
                 margin_min = outputs[u, cur_y] - outputs[u, target_y[:, target_index]]
                 cost = -margin_min.sum()
-                # cost = torch.sum(outputs[u, target_y[u, t]] - outputs[u, cur_y])
                 forward_num[idx_to_fool] += 1
 
-                grad = torch.autograd.grad(cost, cur_adv_images,
-                                           retain_graph=False, create_graph=False)[0]
+                grad = torch.autograd.grad(cost, cur_adv_images, retain_graph=False, create_graph=False)[0]
                 backward_num[idx_to_fool] += 1
 
                 if i % self.decay_steps > self.decay_steps // 3:
@@ -193,7 +197,7 @@ class CRAttack(Attack):
                     idx_success = (margin_min < 0.0).nonzero().flatten()
 
                     if len(idx_success) != 0:
-                        adv_images[idx_to_fool[idx_success]] = cur_adv_images[idx_success].clone().detach()
+                        adv_images[idx_to_fool[idx_success]] = cur_adv_images[idx_success].detach()
 
                     if i % self.decay_steps == self.decay_steps // 3 * 2 - 1:
                         sub_idx_to_fool = ((margin_min >= 0.0) & (margin_min <= 1.0 * scale)).nonzero().flatten()
@@ -207,25 +211,26 @@ class CRAttack(Attack):
                     if len(idx_success) != 0:
                         idx_to_fool = idx_to_fool[sub_idx_to_fool]
                         cur_images = cur_images[sub_idx_to_fool]
-                        cur_y = cur_y[sub_idx_to_fool].clone().detach()
-                        target_y = target_y[sub_idx_to_fool].clone().detach()
+                        cur_y = cur_y[sub_idx_to_fool]
+                        target_y = target_y[sub_idx_to_fool]
 
-                        cur_adv_images = cur_adv_images[sub_idx_to_fool].clone().detach() + \
-                                         self.alpha * scale * grad[sub_idx_to_fool].sign()
+                        cur_adv_images = cur_adv_images[sub_idx_to_fool] + self.alpha * scale * grad[
+                            sub_idx_to_fool].sign()
                         delta = torch.clamp(cur_adv_images - cur_images, min=-cur_eps, max=cur_eps)
-                        cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1).detach()
+                        cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1)
                     else:
-                        cur_adv_images = cur_adv_images.detach() + self.alpha * scale * grad.sign()
+                        cur_adv_images = cur_adv_images + self.alpha * scale * grad.sign()
                         delta = torch.clamp(cur_adv_images - cur_images, min=-cur_eps, max=cur_eps)
-                        cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1).detach()
+                        cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1)
                 else:
-                    cur_adv_images = cur_adv_images.detach() + self.alpha * scale * grad.sign()
+                    cur_adv_images = cur_adv_images + self.alpha * scale * grad.sign()
                     delta = torch.clamp(cur_adv_images - cur_images, min=-cur_eps, max=cur_eps)
-                    cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1).detach()
+                    cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1)
 
                 if i % self.decay_steps <= self.decay_steps // 3:
                     delta = torch.clamp(cur_adv_images - cur_images, min=-self.eps, max=self.eps)
-                    temp_cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1).detach()
+                    temp_cur_adv_images = torch.clamp(cur_images + delta, min=0, max=1)
+
                     margin_min = self.margin(temp_cur_adv_images, cur_y)
                     forward_num[idx_to_fool] += 1
 
@@ -242,12 +247,11 @@ class CRAttack(Attack):
                     if len(idx_success) != 0:
                         idx_to_fool = idx_to_fool[sub_idx_to_fool]
                         cur_images = cur_images[sub_idx_to_fool]
-                        cur_adv_images = cur_adv_images[sub_idx_to_fool].clone().detach()
-                        cur_y = cur_y[sub_idx_to_fool].clone().detach()
-                        target_y = target_y[sub_idx_to_fool].clone().detach()
+                        cur_adv_images = cur_adv_images[sub_idx_to_fool]
+                        cur_y = cur_y[sub_idx_to_fool]
+                        target_y = target_y[sub_idx_to_fool]
 
-            # potential_idx[target_index][idx_to_fool] = True
-
+        # Return the updated adversarial images
         delta = torch.clamp(adv_images - images, min=-self.eps, max=self.eps)
         adv_images = torch.clamp(images + delta, min=0, max=1).detach()
 
@@ -275,8 +279,49 @@ class CRAttack(Attack):
             forward_num += f_num
             backward_num += b_num
 
-        # adv_images[idx_to_fool] = cur_adv_images.clone().detach()
         delta = torch.clamp(adv_images - images, min=-self.eps, max=self.eps)
         adv_images = torch.clamp(images + delta, min=0, max=1).detach()
 
         return adv_images, forward_num, backward_num
+
+    def run_standard_evaluation(self, x_orig, y_orig, bs=100):
+        """
+        Run standard evaluation
+        Args:
+            x_orig: Original images
+            y_orig: Original labels
+            bs: Batch size
+
+        Returns: adversarial images
+        """
+        adv_images = []
+        forward_num, backward_num = 0, 0
+        start_time = time.time()
+        total_success, total_num = 0, 0
+
+        for i in range(0, len(x_orig), bs):
+            x_batch = x_orig[i:i + bs].to(self.device)
+            y_batch = y_orig[i:i + bs].to(self.device)
+
+            adv_batch, f_num, b_num = self.forward(x_batch, y_batch)
+            adv_images.append(adv_batch)
+            forward_num += f_num.sum().item()
+            backward_num += b_num.sum().item()
+            margin_min = self.margin(adv_batch, y_batch)
+            success = (margin_min < 0.0).sum().item()
+            total_success += success
+            total_num += len(x_batch)
+            if self.logger is not None:
+                self.logger.log(
+                    f"Batch {i // bs + 1}/{len(x_orig) // bs}: {success} out of {len(x_batch)} successfully perturbed, Forward: {f_num.sum().item()}, Backward: {b_num.sum().item()}, Total time: {round(time.time() - start_time, 1)} s")
+            print(f"Batch {i // bs + 1}/{len(x_orig) // bs}: {success} out of {len(x_batch)} successfully perturbed, Forward: {f_num.sum().item()}, Backward: {b_num.sum().item()}, Total time: {round(time.time() - start_time, 1)} s")
+
+        if self.logger is not None:
+            self.logger.new_line()
+            self.logger.log(f"Robust accuracy: {round((1 - total_success / total_num) * 100, 2)}%")
+            self.logger.log(f"Total forward: {forward_num}, Total backward: {backward_num}")
+        print()
+        print(f"Robust accuracy: {round((1 - total_success / total_num) * 100, 2)}%")
+        print(f"Total forward: {forward_num}, Total backward: {backward_num}")
+
+        return torch.cat(adv_images)

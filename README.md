@@ -1,23 +1,95 @@
-# Constraint-relaxation-attack
-Code for the paper: Efficient Robustness Evaluation via Constraint Relaxation
+# Constraint-Relaxation-Attack
 
-## Environment settings
-- OS: Ubuntu 20.04.3
-- GPU: ‌NVIDIA Tesla V100
-- Cuda: 11.4
-- Python: 3.8.10
-- PyTorch: 1.10.1
-- Torchvision: 0.11.2
+Official implementation for the paper: **Efficient Robustness Evaluation via Constraint Relaxation**
 
+## Overview
+
+This repository contains the implementation of the Constraint Relaxation Attack (CRAttack), a novel approach for efficiently evaluating the adversarial robustness of deep neural networks. The attack relaxes constraints during the optimization process to find more effective adversarial examples.
+
+## Environment Setup
+
+- **OS**: Ubuntu 20.04.3
+- **GPU**: NVIDIA Tesla V100
+- **CUDA**: 11.4
+- **Python**: 3.8.10
+- **PyTorch**: 1.10.1
+- **Torchvision**: 0.11.2
+
+## Installation
+
+```bash
+git clone https://github.com/username/constraint-relaxation-attack.git
+cd constraint-relaxation-attack
+pip install -r requirements.txt
+```
+
+## Quick Start Example
+
+The following example demonstrates how to use CRAttack on a pre-trained model from RobustBench against the CIFAR-10 dataset:
+
+```python
+import torch
+import torchvision.transforms as transforms
+from robustbench import load_model
+from torch.utils.data import DataLoader
+from torchvision.datasets import CIFAR10
+
+from attacks import CRAttack
+
+# Set device for computation
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+
+# Load CIFAR-10 test dataset
+test_loader = DataLoader(CIFAR10('./data/cifar10', train=False, transform=transforms.ToTensor()),
+                         batch_size=10000, shuffle=False, num_workers=0)
+
+# Extract data from loader
+X, y = [], []
+for i, (x, y_) in enumerate(test_loader):
+    X = x.to(device)
+    y = y_.to(device)
+
+# Load pre-trained robust model from RobustBench
+model = load_model(model_name='Wang2023Better_WRN-28-10', dataset='cifar10', threat_model='Linf').to(device)
+model = model.eval()
+
+# Initialize the CRAttack with epsilon=8/255 and specify log file
+attacker = CRAttack(model, eps=8.0 / 255, log_path='cr_test.log')
+
+# Run evaluation with batch size of 200
+attacker.run_standard_evaluation(X, y, bs=200)
+```
+
+This example:
+1. Sets up the computation device (GPU if available)
+2. Loads the CIFAR-10 test dataset
+3. Loads a pre-trained WideResNet model from RobustBench
+4. Creates a CRAttack instance with perturbation bound ε=8/255
+5. Runs the attack evaluation and logs results to 'cr_test.log'
 
 ## Attack Commands
-The default setting will initiate an attack on all models contained within the ./model_ids/ directory for the specified dataset. However, if there is only one target model for which an attack is desired, the user may specify the unique model identifier using the --model_id parameter. 
 
-```.bash
+You can run attacks on various datasets using our provided scripts. The default setting evaluates all models specified in the `./model_ids/` directory for the given dataset.
+
+```bash
+# Attack models on CIFAR-10 with default epsilon (8/255)
 python main.py --dataset 'cifar10'
+
+# Attack models on CIFAR-100 with default epsilon (8/255)
 python main.py --dataset 'cifar100'
+
+# Attack models on ImageNet with epsilon=4/255
 python main.py --dataset 'imagenet' --eps '4/255'
 ```
+
+### Custom Model Evaluation
+
+If you want to evaluate just one specific model, use the `--model_id` parameter:
+
+```bash
+python main.py --dataset 'cifar10' --model_id 'Wang2023Better_WRN-28-10'
+```
+
 
 ## Full results
 ### CIFAR-10
