@@ -1,6 +1,6 @@
 # Constraint-Relaxation-Attack
 
-Official implementation for the paper: **Efficient Robustness Evaluation via Constraint Relaxation**
+Official implementation for our AAAI 2025 paper: **[Efficient Robustness Evaluation via Constraint Relaxation](https://ojs.aaai.org/index.php/AAAI/article/view/32670)**. 
 
 ## Overview
 
@@ -243,3 +243,18 @@ python main.py --dataset 'cifar10' --model_id 'Wang2023Better_WRN-28-10'
 |  <sub>**8**</sub> | <sub><sup>**[Salman2020Do_R18](https://arxiv.org/abs/2007.08489)**</sup></sup> | <sub>ResNet-18</sub> |<sub>25.32% </sub> | <sub>25.32% </sub> | <sub>2016 </sub> | <sub>519 </sub> | <sub>**25.22%**</sub> | <sub>77 (26.2×) </sub> | <sub>42 (12.4×) </sub> | 
 -->
 
+
+## Citation
+
+If you find this work useful for your research, please consider citing our paper: 
+```
+@inproceedings{pan2025efficient,
+  title={Efficient Robustness Evaluation via Constraint Relaxation},
+  author={Pan, Chao and Wu, Yu and Tang, Ke and Li, Qing and Yao, Xin},
+  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume={39},
+  number={6},
+  pages={6263--6271},
+  year={2025}
+}
+```
