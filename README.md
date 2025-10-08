@@ -1,7 +1,6 @@
 # Constraint-Relaxation-Attack
 
-Official implementation for our AAAI 2025 paper: **[Efficient Robustness Evaluation via Constraint Relaxation](https://ojs.aaai.org/index.php/AAAI/article/view/32670)**. 
-
+Official implementation for our AAAI 2025 paper: **[Efficient Robustness Evaluation via Constraint Relaxation](https://ojs.aaai.org/index.php/AAAI/article/view/32670/34825)**. 
 ## Overview
 
 This repository contains the implementation of the Constraint Relaxation Attack (CRAttack), a novel approach for efficiently evaluating the adversarial robustness of deep neural networks. The attack relaxes constraints during the optimization process to find more effective adversarial examples.
@@ -258,3 +257,4 @@ If you find this work useful for your research, please consider citing our paper
   year={2025}
 }
 ```
+
